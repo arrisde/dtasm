@@ -4,9 +4,9 @@
 pub mod interface;
 pub use dtasm_base::{types,model_description,errors};
 
-use dtasm_abi::dtasm_generated::dtasm_api as DTAPI;
-use dtasm_abi::dtasm_generated::dtasm_types as DTT;
-use dtasm_abi::dtasm_generated::dtasm_model_description as DTMD;
+use dtasm_abi::generated::dtasm_api as DTAPI;
+use dtasm_abi::generated::dtasm_types as DTT;
+use dtasm_abi::generated::dtasm_model_description as DTMD;
 use flatbuffers as FB;
 
 use libc::{c_void,size_t,malloc,free};
@@ -69,7 +69,7 @@ extern "C" fn getModelDescription(out_p: *mut u8, max_len: u32) -> u32 {
 extern "C" fn init(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u32) -> u32
 {
     let in_bytes = unsafe { slice::from_raw_parts(in_p, in_len as usize) };
-    let init_req = FB::get_root::<DTAPI::InitReq>(in_bytes);
+    let init_req = unsafe { FB::root_unchecked::<DTAPI::InitReq>(in_bytes) };
 
     let mut init_vals_sim = DtasmVarValues::new();
 
@@ -147,7 +147,7 @@ extern "C" fn init(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u3
 extern "C" fn getValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u32) -> u32
 {    
     let in_bytes = unsafe { slice::from_raw_parts(in_p, in_len as usize) };
-    let getvalues_req = FB::get_root::<DTAPI::GetValuesReq>(in_bytes);
+    let getvalues_req = unsafe { FB::root_unchecked::<DTAPI::GetValuesReq>(in_bytes) };
 
     let get_ids = getvalues_req.ids().expect("Get values request did not contain any variables.");
     let mut get_var_ids: Vec<i32> = vec!();
@@ -242,7 +242,7 @@ extern "C" fn getValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
 extern "C" fn setValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u32) -> u32
 {
     let in_bytes = unsafe { slice::from_raw_parts(in_p, in_len as usize) };
-    let set_req = FB::get_root::<DTAPI::SetValuesReq>(in_bytes);
+    let set_req = unsafe { FB::root_unchecked::<DTAPI::SetValuesReq>(in_bytes) };
 
     let mut set_vals_sim = DtasmVarValues::new();
 
@@ -303,7 +303,7 @@ extern "C" fn setValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
 extern "C" fn doStep(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u32) -> u32
 {
     let in_bytes = unsafe { slice::from_raw_parts(in_p, in_len as usize) };
-    let dostep_req = FB::get_root::<DTAPI::DoStepReq>(in_bytes);
+    let dostep_req = unsafe { FB::root_unchecked::<DTAPI::DoStepReq>(in_bytes) };
 
     let current_time = dostep_req.current_time();
     let step = dostep_req.timestep();

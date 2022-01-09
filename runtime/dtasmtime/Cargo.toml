@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 wasmtime = "0.19"
 wasmtime-wasi = "0.19"
-flatbuffers = { version = "0.6.2", path = "../../third_party/flatbuffers.git/rust/flatbuffers" }
+flatbuffers = { version = "2.0.0", path = "../../third_party/flatbuffers.git/rust/flatbuffers", default-features = false }
 thiserror = "1.0"
 anyhow = "1.0.28"
 

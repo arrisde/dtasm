@@ -11,9 +11,9 @@ use flatbuffers as FB;
 use wasmtime as WT;
 use wasmtime_wasi as WTW;
 
-use dtasm_abi::dtasm_generated::dtasm_api as DTAPI;
-use dtasm_abi::dtasm_generated::dtasm_types as DTT;
-use dtasm_abi::dtasm_generated::dtasm_model_description as DTMD;
+use dtasm_abi::generated::dtasm_api as DTAPI;
+use dtasm_abi::generated::dtasm_types as DTT;
+use dtasm_abi::generated::dtasm_model_description as DTMD;
 
 use crate::errors::DtasmtimeError;
 use DtasmtimeError::DtasmError as DTERR; 
@@ -350,7 +350,7 @@ impl Instance {
             &self.memory.data_unchecked()[init_res_ptr..init_res_ptr+(size_out as usize)] 
         };
 
-        let init_res = FB::get_root::<DTAPI::StatusRes>(res_bytes);
+        let init_res = unsafe { FB::root_unchecked::<DTAPI::StatusRes>(res_bytes) };
 
         let status_res = init_res.status().into();
         
@@ -410,7 +410,7 @@ impl Instance {
             &self.memory.data_unchecked()[getval_res_ptr..getval_res_ptr+size_out as usize]
         };
     
-        let getvalues_res = FB::get_root::<DTAPI::GetValuesRes>(res_bytes);
+        let getvalues_res = unsafe { FB::root_unchecked::<DTAPI::GetValuesRes>(res_bytes) };
         let var_values = Instance::extract_vals(&getvalues_res, &self.var_types)?;
         let current_time = getvalues_res.current_time();
         let status = getvalues_res.status().into();
@@ -553,7 +553,7 @@ impl Instance {
             &self.memory.data_unchecked()[set_res_ptr..set_res_ptr+(size_out as usize)] 
         };
 
-        let init_res = FB::get_root::<DTAPI::StatusRes>(res_bytes);
+        let init_res = unsafe { FB::root_unchecked::<DTAPI::StatusRes>(res_bytes) };
 
         let status_res = init_res.status().into();
         
@@ -597,7 +597,7 @@ impl Instance {
             &self.memory.data_unchecked()[dostep_res_ptr..dostep_res_ptr+size_out as usize]
         };
     
-        let dostep_res = FB::get_root::<DTAPI::DoStepRes>(res_bytes);
+        let dostep_res = unsafe { FB::root_unchecked::<DTAPI::DoStepRes>(res_bytes) };
         let updated_time = dostep_res.updated_time();
         let status_res = dostep_res.status().into();
      

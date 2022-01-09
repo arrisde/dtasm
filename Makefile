@@ -61,9 +61,6 @@ run-c: $(DPEND_C) $(DTASMTIME_MAIN_C)
 test: $(DTASMTIME)
 	cd runtime/dtasmtime; cargo test $(CARGO_BUILD_FLAGS)
 
-test: $(DTASMTIME)
-	cd runtime/dtasmtime; cargo test $(CARGO_BUILD_FLAGS)
-
 $(FLATC):
 	mkdir -p $(FB_DIR)/_build
 	cd $(FB_DIR)/_build; cmake $(FB_CMAKE_FLAGS) ..

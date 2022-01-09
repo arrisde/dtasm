@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::model_description as MD;
-use dtasm_abi::dtasm_generated::dtasm_types as DTT;
+use dtasm_abi::generated::dtasm_types as DTT;
 
 use std::collections::HashMap;
 
@@ -45,6 +45,7 @@ impl From<DTT::LogLevel> for LogLevel {
             DTT::LogLevel::Info => LogLevel::Info, 
             DTT::LogLevel::Warn => LogLevel::Warn, 
             DTT::LogLevel::Error => LogLevel::Error, 
+            _ => LogLevel::Error
         }
     }
 }
@@ -63,7 +64,8 @@ impl From<DTT::Status> for Status {
             DTT::Status::OK => Status::OK, 
             DTT::Status::Warning => Status::Warning, 
             DTT::Status::Discard => Status::Discard, 
-            DTT::Status::Error => Status::Error
+            DTT::Status::Error => Status::Error,
+            _ => Status::Error
         }
     }
 }
