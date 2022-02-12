@@ -38,7 +38,7 @@ DTASMTIME = runtime/dtasmtime/target/$(CONFIG)/libdtasmtime.rlib
 DTASMTIME_C = runtime/dtasmtime-c-api/target/$(CONFIG)/$(LIB_PREFIX)dtasmtime_c_api$(LIB_EXT)
 DTASMTIME_MAIN = runtime/examples/dtasmtime_rs/target/$(CONFIG)/dtasmtime_rs$(EXE_EXT)
 DTASMTIME_MAIN_C = runtime/examples/dtasmtime_c/target/$(CONFIGDIR)main$(EXE_EXT)
-DEP_FILES = lib/dtasm_abi/src/dtasm_generated.rs module/dpend/target/modelDescription.fb lib/dtasm_abi/include/dtasm_generated.h module/dpend/target/modelDescription.h
+DEP_FILES = lib/dtasm_abi/src/generated/mod.rs module/dpend/target/modelDescription.fb lib/dtasm_abi/include/dtasm_generated.h module/dpend/target/modelDescription.h
 
 default: $(DPEND_RS) $(ADD_RS) $(DTASMTIME_MAIN)
 
@@ -92,7 +92,7 @@ $(DPEND_C): deps
 	cd module/dpend_cpp/build; cmake .. -G "Unix Makefiles" -DCMAKE_TOOLCHAIN_FILE="$(WASI_SDK)/share/cmake/wasi-sdk.cmake" -DWASI_SDK_PREFIX="$(WASI_SDK)" -DCMAKE_BUILD_TYPE=$(CONFIG)
 	cd module/dpend_cpp/build; cmake --build . --config  $(CONFIG) --verbose
 
-lib/dtasm_abi/src/dtasm_generated.rs: lib/dtasm_abi/schema/dtasm.fbs $(FLATC)
+lib/dtasm_abi/src/generated/mod.rs: lib/dtasm_abi/schema/dtasm.fbs $(FLATC)
 	$(FLATC) --rust --gen-mutable -o $(dir $@) $<
 
 lib/dtasm_abi/include/dtasm_generated.h: lib/dtasm_abi/schema/dtasm.fbs $(FLATC)

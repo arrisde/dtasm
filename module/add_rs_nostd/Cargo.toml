@@ -1,0 +1,22 @@
+[package]
+name = "add_rs_nostd"
+version = "0.1.0"
+authors = ["arrisde <maurice@nurfuerspam.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+compiler_builtins = { version = "0.1.66", features = ["mem"] }
+dtasm_abi = { version = "0.1.0", path = "../../lib/dtasm_abi" }
+dtasm_base = { version = "0.1.0", path = "../../lib/dtasm_base_rs_nostd" }
+flatbuffers = { version = "2.0.0", path = "../../third_party/flatbuffers.git/rust/flatbuffers", default-features = false }
+once_cell = { version = "1.9.0", default-features = false }
+wee_alloc = { version = "0.4.5", default-features = false }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 'z'  # Optimize for size.
+lto = true

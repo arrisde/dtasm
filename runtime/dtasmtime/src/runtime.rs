@@ -23,7 +23,7 @@ use dtasm_base::types::{DtasmVarType,DtasmVarValues,LogLevel,Status,GetValuesRes
 use dtasm_base::errors::DtasmError;
 
 type In1Out1T = dyn Fn(i32,) -> Result<i32, WT::Trap>;
-type In1Out0T = dyn Fn(i32,) -> Result<(), WT::Trap>;
+type In2Out0T = dyn Fn(i32, i32) -> Result<(), WT::Trap>;
 type In2Out1T = dyn Fn(i32, i32) -> Result<i32, WT::Trap>;
 type In4Out1T = dyn Fn(i32, i32, i32, i32) -> Result<i32, WT::Trap>;
 
@@ -95,7 +95,6 @@ impl Module<'_> {
 
         let reactor_init = wt_instance
             .get_func("_initialize");
-
         let memory = wt_instance
             .get_memory("memory")
             .ok_or(DTERR(DtasmError::MissingDtasmExport("memory".to_string())))?;
@@ -106,7 +105,7 @@ impl Module<'_> {
         let dealloc = wt_instance
             .get_func("dealloc")
             .ok_or(DTERR(DtasmError::MissingDtasmExport("dealloc".to_string())))?
-            .get1::<i32, ()>()?;
+            .get2::<i32, i32, ()>()?;
         let get_model_description = wt_instance
             .get_func("getModelDescription")
             .ok_or(DTERR(DtasmError::MissingDtasmExport("getModelDescription".to_string())))?
@@ -150,7 +149,7 @@ pub struct Instance {
     memory: WT::Memory, 
     reactor_init_fn: Option<WT::Func>,
     alloc_fn: Box<In1Out1T>, 
-    dealloc_fn: Box<In1Out0T>, 
+    dealloc_fn: Box<In2Out0T>, 
     get_md_fn: Box<In2Out1T>, 
     init_fn: Box<In4Out1T>,
     get_values_fn: Box<In4Out1T>,
@@ -179,7 +178,7 @@ impl Instance {
         let mut size_out = (*self.get_md_fn)(mem, size)?;
 
         while size_out > size {
-            (*self.dealloc_fn)(mem)?;
+            (*self.dealloc_fn)(mem, size)?;
             size *= 2;
             mem = (*self.alloc_fn)(size)?;
 
@@ -195,7 +194,7 @@ impl Instance {
         self.md = Some(md.clone());
         self.var_types = Instance::collect_var_types(&md)?;
 
-        (*self.dealloc_fn)(mem)?;
+        (*self.dealloc_fn)(mem, size)?;
    
         Ok(md)
     }
@@ -354,8 +353,8 @@ impl Instance {
 
         let status_res = init_res.status().into();
         
-        (*self.dealloc_fn)(init_req_ptr as i32)?;
-        (*self.dealloc_fn)(init_res_ptr as i32)?;
+        (*self.dealloc_fn)(init_req_ptr as i32, init_req_len as i32)?;
+        (*self.dealloc_fn)(init_res_ptr as i32, size)?;
         self.builder.reset();
 
         Ok(status_res)
@@ -399,7 +398,7 @@ impl Instance {
         let mut size_out = (*self.get_values_fn)(getval_req_ptr as i32, getval_req_len as i32, getval_res_ptr as i32, size)?;
         
         while size_out > size {
-            (*self.dealloc_fn)(getval_res_ptr as i32)?;
+            (*self.dealloc_fn)(getval_res_ptr as i32, size)?;
             size *= 2;
             getval_res_ptr = (*self.alloc_fn)(size)? as usize;
     
@@ -415,8 +414,8 @@ impl Instance {
         let current_time = getvalues_res.current_time();
         let status = getvalues_res.status().into();
 
-        (*self.dealloc_fn)(getval_req_ptr as i32)?;
-        (*self.dealloc_fn)(getval_res_ptr as i32)?;
+        (*self.dealloc_fn)(getval_req_ptr as i32, getval_req_len as i32)?;
+        (*self.dealloc_fn)(getval_res_ptr as i32, size)?;
         self.builder.reset();
 
         Ok(GetValuesResponse {status, current_time, values: var_values})
@@ -557,8 +556,8 @@ impl Instance {
 
         let status_res = init_res.status().into();
         
-        (*self.dealloc_fn)(set_req_ptr as i32)?;
-        (*self.dealloc_fn)(set_res_ptr as i32)?;
+        (*self.dealloc_fn)(set_req_ptr as i32, set_req_len as i32)?;
+        (*self.dealloc_fn)(set_res_ptr as i32, size)?;
         self.builder.reset();
 
         Ok(status_res)
@@ -601,8 +600,8 @@ impl Instance {
         let updated_time = dostep_res.updated_time();
         let status_res = dostep_res.status().into();
      
-        (*self.dealloc_fn)(dostep_req_ptr as i32)?;
-        (*self.dealloc_fn)(dostep_res_ptr as i32)?;
+        (*self.dealloc_fn)(dostep_req_ptr as i32, dostep_req_len as i32)?;
+        (*self.dealloc_fn)(dostep_res_ptr as i32, size)?;
         self.builder.reset();
 
         Ok(DoStepResponse {status: status_res, updated_time})

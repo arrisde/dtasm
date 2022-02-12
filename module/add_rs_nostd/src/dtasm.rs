@@ -1,57 +1,62 @@
 // Copyright 2021 Siemens AG
 // SPDX-License-Identifier: MIT
 
-pub mod interface;
-pub use dtasm_base::{types,model_description,errors};
+extern crate alloc;
+
+use alloc::slice;
+use alloc::vec;
+pub use dtasm_base::{types,model_description};
 
 use dtasm_abi::generated::dtasm_api as DTAPI;
 use dtasm_abi::generated::dtasm_types as DTT;
 use dtasm_abi::generated::dtasm_model_description as DTMD;
 use flatbuffers as FB;
 
-use libc::{c_void,size_t,malloc,free};
-use once_cell::sync::Lazy;
+use alloc::vec::Vec;
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::alloc::{alloc as my_alloc, dealloc as my_dealloc, Layout};
 
-use std::slice;
-use std::collections::HashMap;
-use std::sync::Mutex;
+use once_cell::unsync::Lazy;
 
 use dtasm_base::model_conversion::{convert_model_description,collect_var_types};
 use dtasm_base::types::{DtasmVarType,DtasmVarValues};
 
-extern "Rust" {
-    static mut SIM_MODULE: Lazy<Box<dyn interface::DtasmIf + Sync + Send>>;
-}
+use crate::interface;
 
-static VARTYPES: Lazy<Mutex<HashMap<i32, DtasmVarType>>> = Lazy::new(|| Mutex::new(HashMap::new()));
-static MDBYTES: Lazy<Mutex<&[u8]>> = Lazy::new(|| Mutex::new(&[]));
-static FBBUILDER: Lazy<Mutex<FB::FlatBufferBuilder>> = Lazy::new(|| Mutex::new(FB::FlatBufferBuilder::new_with_capacity(4096)));
-
-#[no_mangle]
-extern "C" fn alloc(size: size_t) -> *mut c_void {
-    unsafe { malloc(size) }
-}
+static mut SIM_MODULE: Lazy<Box<dyn interface::DtasmIf + Sync + Send>> = Lazy::new(|| Box::new(crate::adder::AddMod));
+static mut VARTYPES: Option<BTreeMap<i32, DtasmVarType>> = None;
+static mut MDBYTES: Option<&[u8]> = Some(&[]);
+static mut FBBUILDER: Option<FB::FlatBufferBuilder> = None;
 
 #[no_mangle]
-extern "C" fn dealloc(p: *mut c_void, size: size_t) {
-    unsafe { free(p) }
+extern "C" fn alloc(len: usize) -> *mut u8 {
+    let align = core::mem::align_of::<usize>();
+    let layout = unsafe { Layout::from_size_align_unchecked(len, align) };
+    unsafe { my_alloc(layout) }
+}
+
+#[no_mangle]
+extern "C" fn dealloc(ptr: *mut u8, size: usize) {
+    let align = core::mem::align_of::<usize>();
+    let layout = unsafe { Layout::from_size_align_unchecked(size, align) };
+    unsafe { my_dealloc(ptr, layout) };
 }
 
 #[no_mangle]
 extern "C" fn getModelDescription(out_p: *mut u8, max_len: u32) -> u32 {
-    assert!(!out_p.is_null());
     let bytes = unsafe { slice::from_raw_parts_mut(out_p, max_len as usize) };
 
-    let mut md_bytes = MDBYTES.lock().unwrap();
+    let mut md_bytes  = unsafe { MDBYTES.unwrap() };
 
     if md_bytes.len() == 0 {
-        *md_bytes = unsafe { SIM_MODULE.get_model_description().unwrap() };
+        md_bytes = unsafe { SIM_MODULE.get_model_description().unwrap() };
 
-        let md_dtasm = DTMD::get_root_as_model_description(*md_bytes);
+        let md_dtasm = unsafe { DTMD::root_as_model_description_unchecked(md_bytes) };
         let md = convert_model_description(&md_dtasm);
 
-        let mut var_types = VARTYPES.lock().unwrap();
-        *var_types = collect_var_types(&md);
+        let var_types = collect_var_types(&md);
+        unsafe { VARTYPES = Some(var_types) }
     }
 
     if md_bytes.len() > max_len as usize {
@@ -59,8 +64,9 @@ extern "C" fn getModelDescription(out_p: *mut u8, max_len: u32) -> u32 {
     }
     else
     {
-        bytes[..md_bytes.len()].copy_from_slice(*md_bytes);
+        bytes[..md_bytes.len()].copy_from_slice(md_bytes);
     }
+    unsafe { MDBYTES = Some(md_bytes); }
 
     return md_bytes.len() as u32;
 }
@@ -89,14 +95,9 @@ extern "C" fn init(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u3
         let val = integer.val();
         init_vals_sim.int_values.insert(id, val);
     });
-    init_vals.string_vals().map(|strings| for string in strings.iter() {
-        let id = string.id();
-        let val = string.val().unwrap().to_string();
-        init_vals_sim.string_values.insert(id, val);
-    });
 
-    let md_bytes = MDBYTES.lock().unwrap();
-    let md_dtasm = DTMD::get_root_as_model_description(*md_bytes);
+    let md_bytes = unsafe { MDBYTES.unwrap() };
+    let md_dtasm = DTMD::root_as_model_description(md_bytes).unwrap();
     let md = convert_model_description(&md_dtasm);
     
     let init_res =
@@ -118,7 +119,8 @@ extern "C" fn init(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: u3
     };
 
     let ret_val: u32;
-    let mut fb_builder = FBBUILDER.lock().unwrap();
+    unsafe { FBBUILDER = Some(FB::FlatBufferBuilder::with_capacity(4096)) };
+    let mut fb_builder = unsafe { FBBUILDER.as_mut().unwrap() };
     {
         let status_res = DTAPI::StatusRes::create(&mut fb_builder, &DTAPI::StatusResArgs{
             status: match init_res {
@@ -162,7 +164,7 @@ extern "C" fn getValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
         };
 
     let ret_val: u32;
-    let mut fb_builder = FBBUILDER.lock().unwrap();
+    let mut fb_builder = unsafe { FBBUILDER.as_mut().unwrap() };
     {
         let mut real_offs: Vec<flatbuffers::WIPOffset<DTT::RealVal>> = Vec::new();
         let real_vals = get_values_res.values.real_values;
@@ -197,23 +199,11 @@ extern "C" fn getValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
         }
         let bool_vals_fb = fb_builder.create_vector(&bool_offs);
 
-        let mut string_offs: Vec<flatbuffers::WIPOffset<DTT::StringVal>> = Vec::new();
-        let str_vals = get_values_res.values.string_values;
-        for (id, val) in str_vals {
-            let val_str = fb_builder.create_string(&val);
-            let str_val = DTT::StringVal::create(&mut fb_builder, &DTT::StringValArgs{
-                id: id,
-                val: Some(val_str)
-            });
-            string_offs.push(str_val);
-        }
-        let str_vals_fb = fb_builder.create_vector(&string_offs);
-
         let scalar_vals = DTT::VarValues::create(&mut fb_builder, &DTT::VarValuesArgs{
             real_vals: Some(real_vals_fb), 
             int_vals: Some(int_vals_fb),
             bool_vals: Some(bool_vals_fb),
-            string_vals: Some(str_vals_fb)
+            string_vals: None
         });
 
         let get_values_res_fb = DTAPI::GetValuesRes::create(&mut fb_builder, &DTAPI::GetValuesResArgs{
@@ -262,11 +252,6 @@ extern "C" fn setValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
         let val = integer.val();
         set_vals_sim.int_values.insert(id, val);
     });
-    set_vals.string_vals().map(|strings| for string in strings.iter() {
-        let id = string.id();
-        let val = string.val().unwrap().to_string();
-        set_vals_sim.string_values.insert(id, val);
-    });
 
     let set_vals_res =
     unsafe { 
@@ -274,7 +259,7 @@ extern "C" fn setValues(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_le
     };
 
     let ret_val: u32;
-    let mut fb_builder = FBBUILDER.lock().unwrap();
+    let mut fb_builder = unsafe { FBBUILDER.as_mut().unwrap() };
     {
         let status_res = DTAPI::StatusRes::create(&mut fb_builder, &DTAPI::StatusResArgs{
             status: match set_vals_res {
@@ -314,7 +299,7 @@ extern "C" fn doStep(in_p: *const u8, in_len: u32, out_p: *mut u8, out_max_len: 
     };
 
     let ret_val: u32;
-    let mut fb_builder = FBBUILDER.lock().unwrap();
+    let mut fb_builder = unsafe { FBBUILDER.as_mut().unwrap() };
     {
         let do_step_res_fb = DTAPI::DoStepRes::create(&mut fb_builder, &DTAPI::DoStepResArgs{
             status: do_step_res.status.into(),

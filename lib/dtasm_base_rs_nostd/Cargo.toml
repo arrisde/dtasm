@@ -1,0 +1,11 @@
+[package]
+name = "dtasm_base"
+version = "0.1.0"
+authors = ["arrisde <maurice@nurfuerspam.de>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+flatbuffers = { version = "2.0.0", path = "../../third_party/flatbuffers.git/rust/flatbuffers", default-features = false }
+dtasm_abi = { version = "0.1.0", path = "../dtasm_abi" }
